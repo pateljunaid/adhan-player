@@ -11,6 +11,7 @@ ADHANS=[1,2,3,4,5,6,7,8,9]
 FAJR=[1,2,3,4]
 LIST=[]
 DEBUG=False
+RUN_ONCE=False
 NAMES = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha']
 FAJR_DIR = 'mp3/fajr/'
 NON_FAJR_DIR = 'mp3/non-fajr/'
@@ -67,9 +68,13 @@ def schedule_prayer_times():
         prayer_name = NAMES[prayer_times.index(pt)]
         print("Scheduled " + prayer_name + " to play at " + pt)
 
-# schedule_prayer_times()
-schedule.every().day.at('00:30').do(schedule_prayer_times)
+if RUN_ONCE:
+    schedule_prayer_times()
+else:
+    schedule.every().day.at('00:30').do(schedule_prayer_times)
+
 print('DEBUG: ' + str(DEBUG))
+print('RUN ONCE: ' + str(RUN_ONCE))
  
 while True:
     schedule.run_pending()
