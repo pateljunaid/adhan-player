@@ -7,11 +7,13 @@ import os
 from pprint import pprint
 import random
  
-ADHANS=[1,2,3,4,5,6,7]
-FAJR=[1,2,3]
+ADHANS=[1,2,3,4,5,6,7,8,9]
+FAJR=[1,2,3,4]
 LIST=[]
 DEBUG=False
 NAMES = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha']
+FAJR_DIR = 'mp3/fajr/'
+NON_FAJR_DIR = 'mp3/non-fajr/'
 
 def get_updated_times():
     # make a request to the website
@@ -43,10 +45,10 @@ def play_adhan():
 
     if (time.strftime('%p') == "PM"):
         x=LIST.pop(random.randrange(len(LIST)))
-        command = "afplay adhan-" + str(x) + ".mp3"
+        command = "afplay " + NON_FAJR_DIR + "adhan-" + str(x) + ".mp3"
     else:
         x=random.randrange(len(FAJR))+1
-        command = "afplay fajr-" + str(x) + ".mp3"
+        command = "afplay " + FAJR_DIR + "fajr-" + str(x) + ".mp3"
 
     print("playing adhan-"+str(x))
     print("Time is " + time.strftime('%I:%M %p'))
