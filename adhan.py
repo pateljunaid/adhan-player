@@ -19,7 +19,9 @@ NON_FAJR_DIR = 'mp3/non-fajr/'
 def update_adhans():
     global ADHANS, FAJR
     ADHANS = [f for f in os.listdir('./mp3/non-fajr') if os.path.isfile(os.path.join('./mp3/non-fajr', f))]
+    ADHANS = [file for file in ADHANS if file.endswith('.mp3')]
     FAJR = [f for f in os.listdir('./mp3/fajr') if os.path.isfile(os.path.join('./mp3/fajr', f))]
+    FAJR = [file for file in FAJR if file.endswith('.mp3')]
 
 def get_updated_times():
     url = 'https://www.islamicfinder.org/prayer-widget/5882873/hanfi/5/0/15.0/15.0'
@@ -70,7 +72,7 @@ def schedule_prayer_times(prayer_times = None):
     if not prayer_times: prayer_times = get_updated_times()
     for pt in prayer_times:
         schedule.every().day.at(pt).do(play_adhan)
-        prayer_name = NAMES[prayer_times.index(pt)]
+        prayer_name = NAMES[prayer_times.index(pt) + (5 - len(prayer_times))]
         print("Scheduled " + prayer_name + " to play at " + pt)
 
 def scheduled_job():
@@ -83,6 +85,8 @@ print('DEBUG: ' + str(DEBUG))
 if DEBUG:
     scheduled_job()
 else:
+    update_adhans()
+
     # schedule any adhans left for the day
     prayer_times = get_updated_times()
     pending_prayer_times = []
