@@ -22,24 +22,42 @@ def update_adhans():
     ADHANS = [file for file in ADHANS if file.endswith('.mp3')]
     FAJR = [f for f in os.listdir('./mp3/fajr') if os.path.isfile(os.path.join('./mp3/fajr', f))]
     FAJR = [file for file in FAJR if file.endswith('.mp3')]
-
+ 
 def get_updated_times():
     url = 'https://www.islamicfinder.org/prayer-widget/5882873/hanfi/5/0/15.0/15.0'
-    page = requests.get(url)
-    soup = BeautifulSoup(page.content, 'html.parser')
-    prayer_times_div = soup.find('div', id='calendar-slider')
-    prayer_times = []
-    prayer_times_raw = prayer_times_div.find_all('div', {
-        'class': 'd-flex flex-direction-row flex-justify-sb pad-top-sm pad-left-sm pad-right-sm'})
-    for prayer_time in prayer_times_raw:
-        time_raw = prayer_time.find_all('p')[1].get_text()
-        dt = datetime.strptime(time_raw.strip(), "%I:%M %p")
-        prayer_times.append(dt.strftime("%H:%M"))
- 
-    prayer_times.pop(1)  # remove sunrise
-    return prayer_times
- 
- 
+    while True:
+        try:
+            # import os
+            # SSID = "Tell My WiFi Love Her"
+            # Connect to the WiFi network (Replace "en0" with your WiFi adapter name if different)
+            # os.system(f'networksetup -setairportnetwork en0 "{SSID}"')
+
+            # Alternative:
+            # networksetup -setairportpower en0 off # turn off device en0
+            # networksetup -setairportpower en0 on  # turn on device en0
+
+            page = requests.get(url, timeout=10)  # Added timeout for better handling
+            page.raise_for_status()  # Raise an exception for HTTP errors (4xx, 5xx)
+            soup = BeautifulSoup(page.content, 'html.parser')
+            prayer_times_div = soup.find('div', id='calendar-slider')
+            prayer_times = []
+            prayer_times_raw = prayer_times_div.find_all('div', {
+                'class': 'd-flex flex-direction-row flex-justify-sb pad-top-sm pad-left-sm pad-right-sm'
+            })
+            
+            for prayer_time in prayer_times_raw:
+                time_raw = prayer_time.find_all('p')[1].get_text()
+                dt = datetime.strptime(time_raw.strip(), "%I:%M %p")
+                prayer_times.append(dt.strftime("%H:%M"))
+            
+            prayer_times.pop(1)  # remove sunrise
+            return prayer_times  # Success, return the times
+
+        except (requests.RequestException, AttributeError, IndexError) as e:
+            print(f"Error fetching prayer times: {e}")
+            print("Retrying in 1 hour...")
+            time.sleep(3600)  # Wait for 1 hour before retrying
+
 def play_adhan():
     if (len(LIST) == 0):
         LIST.extend(ADHANS)
