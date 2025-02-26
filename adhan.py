@@ -54,9 +54,9 @@ def get_updated_times():
             return prayer_times  # Success, return the times
 
         except (requests.RequestException, AttributeError, IndexError) as e:
-            print(f"Error fetching prayer times: {e}")
+            print("Error fetching prayer times")
             print("Retrying in 1 hour...")
-            time.sleep(3600)  # Wait for 1 hour before retrying
+            time.sleep(5)  # Wait for 1 hour before retrying
 
 def play_adhan():
     if (len(LIST) == 0):
