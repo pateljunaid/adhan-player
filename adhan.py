@@ -32,10 +32,6 @@ def get_updated_times():
             # Connect to the WiFi network (Replace "en0" with your WiFi adapter name if different)
             # os.system(f'networksetup -setairportnetwork en0 "{SSID}"')
 
-            # Alternative:
-            # networksetup -setairportpower en0 off # turn off device en0
-            # networksetup -setairportpower en0 on  # turn on device en0
-
             page = requests.get(url, timeout=10)  # Added timeout for better handling
             page.raise_for_status()  # Raise an exception for HTTP errors (4xx, 5xx)
             soup = BeautifulSoup(page.content, 'html.parser')
@@ -55,8 +51,11 @@ def get_updated_times():
 
         except (requests.RequestException, AttributeError, IndexError) as e:
             print("Error fetching prayer times")
+            os.system('networksetup -setairportpower en1 off')
+            time.sleep(10)
+            os.system('networksetup -setairportpower en1 on')
             print("Retrying in 1 hour...")
-            time.sleep(5)  # Wait for 1 hour before retrying
+            time.sleep(3600)
 
 def play_adhan():
     if (len(LIST) == 0):
