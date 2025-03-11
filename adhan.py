@@ -64,7 +64,8 @@ def play_adhan():
     if (len(FAJR_LIST) == 0):
         FAJR_LIST.extend(FAJR)
 
-    print("\n".join(LIST))
+    print(LIST)
+    print(FAJR_LIST)
 
     if (time.strftime('%p') == "PM"):
         x=LIST.pop(random.randrange(len(LIST)))
