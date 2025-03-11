@@ -8,6 +8,7 @@ from pprint import pprint
 import random
 
 DEBUG=False
+RAMADAN=True
 ADHANS = []
 FAJR = []
 LIST=[]
@@ -15,6 +16,24 @@ FAJR_LIST=[]
 NAMES = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha']
 FAJR_DIR = 'mp3/fajr/'
 NON_FAJR_DIR = 'mp3/non-fajr/'
+
+fajr_ramadan = [
+  "05:33", "05:31", "05:30", "05:28", "05:26",
+  "05:24", "05:23", "05:21", "06:20", "06:19",
+  "06:17", "06:15", "06:14", "06:12", "06:10",
+  "06:08", "06:06", "06:04", "06:02", "06:00",
+  "05:59", "05:57", "05:55", "05:53", "05:51",
+  "05:49", "05:47", "05:45", "05:43", "05:41"
+];
+
+magrib_ramadan = [
+  "18:06", "18:07", "18:08", "18:10", "18:11",
+  "18:12", "18:13", "18:15", "19:15", "19:16",
+  "19:17", "19:18", "19:20", "19:21", "19:22",
+  "19:23", "19:25", "19:26", "19:27", "19:28",
+  "19:29", "19:31", "19:32", "19:33", "19:34",
+  "19:36", "19:37", "19:38", "19:39", "19:40"
+];
 
 def update_adhans():
     global ADHANS, FAJR
@@ -47,6 +66,12 @@ def get_updated_times():
                 prayer_times.append(dt.strftime("%H:%M"))
             
             prayer_times.pop(1)  # remove sunrise
+            
+            if (RAMADAN):
+                current_day = datetime.now().day # worked only because islamic and gregorian were in sync
+                prayer_times[0] = fajr_ramadan[current_day-1]
+                prayer_times[3] = magrib_ramadan[current_day-1]
+            
             return prayer_times  # Success, return the times
 
         except (requests.RequestException, AttributeError, IndexError) as e:
