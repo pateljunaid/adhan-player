@@ -16,6 +16,7 @@ FAJR_LIST=[]
 NAMES = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha']
 FAJR_DIR = 'mp3/fajr/'
 NON_FAJR_DIR = 'mp3/non-fajr/'
+DUA_PATH = 'mp3/dua/dua.mp3'
 
 fajr_ramadan = [
   "05:33", "05:31", "05:30", "05:28", "05:26",
@@ -103,6 +104,8 @@ def play_adhan():
     print("Time is " + time.strftime('%I:%M %p'))
     print("\n")
     os.system(command)
+    command = "afplay " + DUA_PATH
+    os.system(command)
     return schedule.CancelJob
  
  
@@ -124,7 +127,6 @@ def scheduled_job():
 
 # Main process
 print('DEBUG: ' + str(DEBUG))
-
 if DEBUG:
     scheduled_job()
 else:
