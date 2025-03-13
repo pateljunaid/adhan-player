@@ -8,7 +8,7 @@ from pprint import pprint
 import random
 
 DEBUG=False
-RAMADAN=True
+RAMADAN=False
 ADHANS = []
 FAJR = []
 LIST=[]
