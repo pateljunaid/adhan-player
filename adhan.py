@@ -70,12 +70,13 @@ def get_updated_times():
             
             if (RAMADAN):
                 current_day = datetime.now().day # worked only because islamic and gregorian were in sync
-                prayer_times[0] = fajr_ramadan[current_day-1]
-                prayer_times[3] = magrib_ramadan[current_day-1]
+                prayer_times[0] = fajr_ramadan[current_day]
+                prayer_times[3] = magrib_ramadan[current_day]
             
             return prayer_times  # Success, return the times
 
         except (requests.RequestException, AttributeError, IndexError) as e:
+            print(e)
             print("Error fetching prayer times")
             os.system('networksetup -setairportpower en1 off')
             time.sleep(10)
