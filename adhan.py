@@ -105,7 +105,7 @@ def play_adhan():
     print("Time is " + time.strftime('%I:%M %p'))
     print("\n")
     os.system(command)
-    command = "afplay " + DUA_PATH
+    command = "afplay " + DUA_PATH + " -v 0.3"
     os.system(command)
     return schedule.CancelJob
  
