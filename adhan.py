@@ -45,15 +45,16 @@ def update_adhans():
  
 def get_updated_times():
     url = 'https://www.islamicfinder.org/prayer-widget/5882873/hanfi/5/0/15.0/15.0'
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
+        'Referer': 'https://www.islamicfinder.org/',
+    }
     while True:
         try:
-            # import os
-            # SSID = "Tell My WiFi Love Her"
-            # Connect to the WiFi network (Replace "en0" with your WiFi adapter name if different)
-            # os.system(f'networksetup -setairportnetwork en0 "{SSID}"')
-
-            page = requests.get(url, timeout=10)  # Added timeout for better handling
-            page.raise_for_status()  # Raise an exception for HTTP errors (4xx, 5xx)
+            page = requests.get(url, headers=headers, timeout=10)
+            page.raise_for_status()
             soup = BeautifulSoup(page.content, 'html.parser')
             prayer_times_div = soup.find('div', id='calendar-slider')
             prayer_times = []
@@ -69,11 +70,11 @@ def get_updated_times():
             prayer_times.pop(1)  # remove sunrise
             
             if (RAMADAN):
-                current_day = datetime.now().day # worked only because islamic and gregorian were in sync
+                current_day = datetime.now().day
                 prayer_times[0] = fajr_ramadan[current_day]
                 prayer_times[3] = magrib_ramadan[current_day]
             
-            return prayer_times  # Success, return the times
+            return prayer_times
 
         except (requests.RequestException, AttributeError, IndexError) as e:
             print(e)
@@ -112,7 +113,6 @@ def play_adhan():
  
 def schedule_prayer_times(prayer_times = None):
     if (DEBUG):
-        # while len(LIST) != 1: play_adhan()
         play_adhan()
         return
     
@@ -150,4 +150,3 @@ else:
 while True:
     schedule.run_pending()
     time.sleep(1)
- 
