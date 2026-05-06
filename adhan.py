@@ -2,6 +2,7 @@ import schedule
 import requests
 from bs4 import BeautifulSoup
 import time
+import subprocess
 from datetime import datetime, time as dt_time
 import os
 from pprint import pprint
@@ -86,28 +87,29 @@ def get_updated_times():
             time.sleep(3600)
 
 def play_adhan():
-    if (len(LIST) == 0):
+    if len(LIST) == 0:
         LIST.extend(ADHANS)
     
-    if (len(FAJR_LIST) == 0):
+    if len(FAJR_LIST) == 0:
         FAJR_LIST.extend(FAJR)
 
     print(LIST)
     print(FAJR_LIST)
 
-    if (time.strftime('%p') == "PM"):
-        x=LIST.pop(random.randrange(len(LIST)))
-        command = "afplay " + NON_FAJR_DIR + str(x)
+    if time.strftime('%p') == "PM":
+        x = LIST.pop(random.randrange(len(LIST)))
+        path = NON_FAJR_DIR + str(x)
     else:
-        x=FAJR_LIST.pop(random.randrange(len(FAJR_LIST)))
-        command = "afplay " + FAJR_DIR + str(x)
+        x = FAJR_LIST.pop(random.randrange(len(FAJR_LIST)))
+        path = FAJR_DIR + str(x)
 
-    print("playing adhan: "+str(x))
-    print("Time is " + time.strftime('%I:%M %p'))
+    print("playing adhan:", x)
+    print("Time is", time.strftime('%I:%M %p'), "\n")
     print("\n")
-    os.system(command)
-    command = "afplay " + DUA_PATH + " -v 0.3"
-    os.system(command)
+
+    subprocess.run(["afplay", path])
+    subprocess.run(["afplay", DUA_PATH, "-v", "0.3"])
+
     return schedule.CancelJob
  
  
