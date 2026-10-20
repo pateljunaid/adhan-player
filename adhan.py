@@ -22,6 +22,7 @@ BASE_DIR = Path(__file__).resolve().parent
 FAJR_DIR = BASE_DIR / 'mp3' / 'fajr'
 NON_FAJR_DIR = BASE_DIR / 'mp3' / 'non-fajr'
 DUA_PATH = BASE_DIR / 'mp3' / 'dua' / 'dua.mp3'
+BISMILLAH_PATH = BASE_DIR / 'mp3' / 'bismillah' / 'bismillah.mp3'
 SETTINGS_PATH = BASE_DIR / 'settings.json'
 CACHE_PATH = BASE_DIR / 'prayer_times.json'
 DASHBOARD_PORT = 8080
@@ -256,6 +257,7 @@ def play_adhan(name, scheduled_time=None):
     print(f'Time is {time.strftime("%I:%M %p")}\n')
     last_played = {'name': name, 'file': adhan.name, 'at': time.strftime('%H:%M')}
     set_system_volume(settings.volume)
+    play(BISMILLAH_PATH)  # plays right away, so it marks the start even if the adhan's intro is silent
     play(adhan)
     play(DUA_PATH, volume=settings.dua_volume / 100)
     return schedule.CancelJob
