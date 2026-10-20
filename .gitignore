@@ -1,3 +1,7 @@
+__pycache__/
 .DS_Store
 mp3/.DS_Store
 mp3/non-fajr/.DS_Store
+prayer_times.json
+settings.json
+settings.json.tmp

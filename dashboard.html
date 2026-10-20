@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Adhan Player</title>
+<style>
+  :root {
+    --bg: #f4f6f5; --card: #fff; --text: #17201c; --muted: #66736d; --line: #e2e8e5;
+    --accent: #1f7a5c; --accent-soft: #e3f3ec; --off: #c5cec9; --error: #b3261e;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #101513; --card: #19201d; --text: #e8efeb; --muted: #8d9b94; --line: #2a3430;
+      --accent: #4cc39a; --accent-soft: #1d3329; --off: #3b4742; --error: #f2877f;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  main { max-width: 520px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1 { font-size: 1.1rem; margin: 0 0 16px; font-weight: 600; }
+  h2 { font-size: .8rem; margin: 0 0 12px; font-weight: 600; text-transform: uppercase;
+       letter-spacing: .06em; color: var(--muted); }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+          padding: 16px; margin-bottom: 16px; }
+  .next-name { font-size: 1.6rem; font-weight: 600; }
+  .next-count { font-size: 2.4rem; font-weight: 700; color: var(--accent);
+                font-variant-numeric: tabular-nums; }
+  .muted { color: var(--muted); }
+  .row { display: flex; align-items: center; justify-content: space-between;
+         padding: 10px 0; border-top: 1px solid var(--line); }
+  .row:first-of-type { border-top: 0; }
+  .row.past { opacity: .5; }
+  .row.next .name { color: var(--accent); font-weight: 600; }
+  .time { font-variant-numeric: tabular-nums; margin-right: 16px; color: var(--muted); }
+  .left { display: flex; align-items: baseline; }
+  .left .name { min-width: 5.5em; }
+  .switch { position: relative; width: 44px; height: 26px; flex: none; }
+  .switch input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; z-index: 1; }
+  .switch span { position: absolute; inset: 0; border-radius: 13px; background: var(--off);
+                 transition: background .15s; }
+  .switch span::after { content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px;
+                        border-radius: 50%; background: #fff; transition: transform .15s; }
+  .switch input:checked + span { background: var(--accent); }
+  .switch input:checked + span::after { transform: translateX(18px); }
+  .switch input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .slider { margin-bottom: 18px; }
+  .slider:last-child { margin-bottom: 0; }
+  .slider label { display: flex; justify-content: space-between; margin-bottom: 6px; }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+  #error { display: none; color: var(--error); margin-bottom: 16px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Adhan Player</h1>
+  <div id="error" role="alert"></div>
+
+  <section class="card">
+    <h2>Next prayer</h2>
+    <div class="next-name" id="next-name">Loading…</div>
+    <div class="next-count" id="next-count"></div>
+    <div class="muted" id="last-played"></div>
+  </section>
+
+  <section class="card">
+    <h2>Today</h2>
+    <div id="prayers"></div>
+  </section>
+
+  <section class="card">
+    <h2>Volume</h2>
+    <div class="slider">
+      <label for="volume"><span>Adhan (Mac volume)</span><span id="volume-label"></span></label>
+      <input type="range" id="volume" min="0" max="100" step="1">
+    </div>
+    <div class="slider">
+      <label for="dua_volume"><span>Dua (relative to adhan)</span><span id="dua_volume-label"></span></label>
+      <input type="range" id="dua_volume" min="0" max="100" step="1">
+    </div>
+  </section>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const SLIDERS = ['volume', 'dua_volume'];
+let state = null;
+let fetchedAt = 0;
+let editing = null; // slider currently being dragged; don't overwrite it while polling
+
+async function api(path, body) {
+  const options = body
+    ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+    : {};
+  const res = await fetch(path, options);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || res.statusText);
+  return data;
+}
+
+function showError(message) {
+  $('error').textContent = message || '';
+  $('error').style.display = message ? 'block' : 'none';
+}
+
+async function refresh() {
+  try {
+    state = await api('/api/state');
+    fetchedAt = Date.now();
+    showError('');
+    render();
+  } catch (e) {
+    showError("Can't reach the Mac: " + e.message);
+  }
+}
+
+async function save(changes) {
+  try {
+    state = await api('/api/settings', changes);
+    fetchedAt = Date.now();
+    showError('');
+  } catch (e) {
+    showError('Could not save: ' + e.message);
+    await refresh();
+  }
+  render();
+}
+
+function render() {
+  if (!state) return;
+  const { prayers, next, settings, last_played } = state;
+  const nextTime = next ? next.time : null;
+
+  const list = $('prayers');
+  list.replaceChildren();
+  if (!prayers.length) {
+    const empty = document.createElement('div');
+    empty.className = 'muted';
+    empty.textContent = 'Prayer times are still loading…';
+    list.append(empty);
+  }
+  let seenNext = false;
+  for (const p of prayers) {
+    const isNext = nextTime !== null && p.time === nextTime && p.name === next.name;
+    if (isNext) seenNext = true;
+    const past = !isNext && !seenNext;
+
+    const row = document.createElement('div');
+    row.className = 'row' + (isNext ? ' next' : '') + (past ? ' past' : '');
+
+    const left = document.createElement('div');
+    left.className = 'left';
+    const name = document.createElement('span');
+    name.className = 'name';
+    name.textContent = p.name;
+    const time = document.createElement('span');
+    time.className = 'time';
+    time.textContent = p.time;
+    left.append(name, time);
+
+    const toggle = document.createElement('label');
+    toggle.className = 'switch';
+    toggle.title = 'Play adhan for ' + p.name;
+    const box = document.createElement('input');
+    box.type = 'checkbox';
+    box.checked = !settings.muted[p.name];
+    box.setAttribute('aria-label', 'Play adhan for ' + p.name);
+    box.addEventListener('change', () => save({ muted: { [p.name]: !box.checked } }));
+    toggle.append(box, document.createElement('span'));
+
+    row.append(left, toggle);
+    list.append(row);
+  }
+
+  for (const id of SLIDERS) {
+    const value = settings[id];
+    $(id + '-label').textContent = value === null ? '—' : value + '%';
+    if (editing !== id) $(id).value = value === null ? 50 : value;
+  }
+
+  $('last-played').textContent = last_played
+    ? 'Last played: ' + last_played.name + ' at ' + last_played.at + ' (' + last_played.file + ')'
+    : '';
+  tick();
+}
+
+function formatCountdown(seconds) {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  if (h > 0) return h + 'h ' + String(m).padStart(2, '0') + 'm';
+  return m + 'm ' + String(s).padStart(2, '0') + 's';
+}
+
+function tick() {
+  if (!state) return;
+  const { next, settings } = state;
+  if (!next) {
+    $('next-name').textContent = state.prayers.length ? 'Done for today' : 'Loading…';
+    $('next-count').textContent = '';
+    return;
+  }
+  const muted = settings.muted[next.name];
+  $('next-name').textContent = next.name + ' · ' + next.time + (muted ? ' (muted)' : '');
+  const remaining = next.seconds - Math.floor((Date.now() - fetchedAt) / 1000);
+  $('next-count').textContent = remaining > 0 ? formatCountdown(remaining) : 'now';
+  if (remaining < -2) refresh();
+}
+
+for (const id of SLIDERS) {
+  const slider = $(id);
+  slider.addEventListener('input', () => {
+    editing = id;
+    $(id + '-label').textContent = slider.value + '%';
+  });
+  slider.addEventListener('change', async () => {
+    await save({ [id]: parseInt(slider.value, 10) });
+    editing = null;
+    render();
+  });
+}
+
+refresh();
+setInterval(refresh, 10000);
+setInterval(tick, 1000);
+</script>
+</body>
+</html>
