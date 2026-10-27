@@ -3,6 +3,7 @@ import json
 import random
 import subprocess
 import sys
+import threading
 import time
 import traceback
 from datetime import date, datetime
@@ -13,6 +14,7 @@ import schedule
 from bs4 import BeautifulSoup
 
 import dashboard
+import loudness
 
 DEBUG = False
 RAMADAN = False
@@ -124,35 +126,76 @@ last_played = None
 network_failures = 0
 
 
-def load_gains():
-    """Per-file playback gains (<= 1.0) that even out loudness; see normalize_levels.py."""
+GAINS = {}  # per-file playback gains (<= 1.0) that even out loudness; see loudness.py
+measured = {}  # loudness measured on this machine for mp3s missing from loudness.json
+measuring = False
+
+
+def level_key(path):
+    return Path(path).relative_to(BASE_DIR).as_posix()
+
+
+def load_levels():
     try:
-        files = json.loads(LEVELS_PATH.read_text())['files']
-        return {name: entry['gain'] for name, entry in files.items()}
+        levels = json.loads(LEVELS_PATH.read_text())['files']
     except (OSError, ValueError, KeyError, TypeError):
-        print(f'WARNING: no usable {LEVELS_PATH.name}; adhans will not be loudness-matched')
-        return {}
+        levels = {}
+    levels.update(measured)
+    return levels
 
 
-GAINS = load_gains()
+def update_gains():
+    global GAINS
+    levels = {name: entry for name, entry in load_levels().items() if (BASE_DIR / name).is_file()}
+    GAINS = loudness.compute_gains(levels)
 
 
 def gain_for(path):
-    name = Path(path).relative_to(BASE_DIR).as_posix()
+    name = level_key(path)
     if name in GAINS:
         return GAINS[name]
     if GAINS:
-        # a new file nobody has measured yet: err on the quiet side rather than blast it
-        print(f'WARNING: {name} is not in {LEVELS_PATH.name}; run normalize_levels.py')
+        # not measured yet (just added): err on the quiet side rather than blast it
+        print(f'WARNING: {name} has not been measured yet; playing it quietly')
         return min(GAINS.values())
     return 1.0
 
 
+def measure_files(paths):
+    global measuring
+    try:
+        for path in paths:
+            try:
+                measured[level_key(path)] = {'lufs': loudness.measure_lufs(path), 'size': path.stat().st_size}
+            except Exception as e:  # a thread can't be allowed to die quietly half-way through
+                print(f'Could not measure {path.name}: {e!r}')
+                continue
+            update_gains()
+            print(f'Measured loudness of {path.name}')
+    finally:
+        measuring = False
+
+
+def measure_new_files():
+    """Measures mp3s missing from loudness.json (e.g. adhans just dropped into a folder).
+
+    Runs in the background; until a file is measured it plays quietly (see gain_for).
+    """
+    global measuring
+    levels = load_levels()
+    files = FAJR_POOL.files + NON_FAJR_POOL.files + [BISMILLAH_PATH, DUA_PATH]
+    todo = [p for p in files if p.is_file() and levels.get(level_key(p), {}).get('size') != p.stat().st_size]
+    if todo and not measuring:
+        print(f'Measuring loudness of {len(todo)} new file(s) in the background')
+        measuring = True
+        threading.Thread(target=measure_files, args=(todo,), daemon=True).start()
+
+
 def refresh_adhans():
-    global GAINS
-    GAINS = load_gains()
     FAJR_POOL.refresh()
     NON_FAJR_POOL.refresh()
+    update_gains()
+    measure_new_files()
 
 
 def fetch_prayer_times():

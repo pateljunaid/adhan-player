@@ -1,125 +1,100 @@
 {
-  "target_lufs": -20.39,
   "files": {
+    "mp3/bismillah/bismillah.mp3": {
+      "lufs": -20.17,
+      "size": 101452
+    },
+    "mp3/dua/dua.mp3": {
+      "lufs": -14.86,
+      "size": 662185
+    },
     "mp3/fajr/RashidMishary_Fajr.mp3": {
-      "lufs": -13.44,
-      "size": 1498743,
-      "gain": 0.4493
+      "lufs": -13.32,
+      "size": 1498743
     },
     "mp3/fajr/fajr-1.mp3": {
       "lufs": -12.63,
-      "size": 4492780,
-      "gain": 0.4093
+      "size": 4492780
     },
     "mp3/fajr/fajr-2.mp3": {
-      "lufs": -20.39,
-      "size": 7217456,
-      "gain": 1.0
+      "lufs": -20.22,
+      "size": 7217456
     },
     "mp3/fajr/fajr-3.mp3": {
-      "lufs": -9.65,
-      "size": 6104013,
-      "gain": 0.2904
+      "lufs": -9.79,
+      "size": 6104013
     },
     "mp3/fajr/fajr-4.mp3": {
-      "lufs": -19.7,
-      "size": 7258834,
-      "gain": 0.9236
+      "lufs": -19.49,
+      "size": 7258834
     },
     "mp3/non-fajr/Abdulkarim Almakki.mp3": {
-      "lufs": -14.48,
-      "size": 3705762,
-      "gain": 0.5064
+      "lufs": -14.69,
+      "size": 3705762
     },
     "mp3/non-fajr/Alaqsa.mp3": {
-      "lufs": -11.36,
-      "size": 1798629,
-      "gain": 0.3536
+      "lufs": -11.28,
+      "size": 1798629
     },
     "mp3/non-fajr/Egypt.mp3": {
-      "lufs": -10.51,
-      "size": 1461963,
-      "gain": 0.3206
+      "lufs": -10.41,
+      "size": 1461963
     },
     "mp3/non-fajr/Istanbul Adhan.mp3": {
-      "lufs": -13.79,
-      "size": 3198359,
-      "gain": 0.4677
+      "lufs": -13.72,
+      "size": 3198359
     },
     "mp3/non-fajr/Makkah.mp3": {
-      "lufs": -10.79,
-      "size": 1618488,
-      "gain": 0.3311
+      "lufs": -10.87,
+      "size": 1618488
     },
     "mp3/non-fajr/Sheikh Shaya Al-Tamimi.mp3": {
-      "lufs": -14.5,
-      "size": 4130408,
-      "gain": 0.5076
+      "lufs": -14.43,
+      "size": 4130408
     },
     "mp3/non-fajr/adhan-1.mp3": {
-      "lufs": -16.3,
-      "size": 5716845,
-      "gain": 0.6245
+      "lufs": -16.29,
+      "size": 5716845
     },
     "mp3/non-fajr/adhan-2.mp3": {
-      "lufs": -12.47,
-      "size": 6140564,
-      "gain": 0.4018
+      "lufs": -12.52,
+      "size": 6140564
     },
     "mp3/non-fajr/adhan-3.mp3": {
-      "lufs": -8.45,
-      "size": 4251826,
-      "gain": 0.2529
+      "lufs": -8.36,
+      "size": 4251826
     },
     "mp3/non-fajr/adhan-4.mp3": {
-      "lufs": -13.83,
-      "size": 5123480,
-      "gain": 0.4699
+      "lufs": -13.82,
+      "size": 5123480
     },
     "mp3/non-fajr/adhan-5.mp3": {
-      "lufs": -10.41,
-      "size": 5371748,
-      "gain": 0.317
+      "lufs": -10.33,
+      "size": 5371748
     },
     "mp3/non-fajr/adhan-6.mp3": {
-      "lufs": -15.96,
-      "size": 6018122,
-      "gain": 0.6005
+      "lufs": -16.25,
+      "size": 6018122
     },
     "mp3/non-fajr/adhan-7.mp3": {
-      "lufs": -16.42,
-      "size": 2879666,
-      "gain": 0.6331
+      "lufs": -16.28,
+      "size": 2879666
     },
     "mp3/non-fajr/adhan-8.mp3": {
-      "lufs": -11.64,
-      "size": 5479582,
-      "gain": 0.3652
+      "lufs": -11.45,
+      "size": 5479582
     },
     "mp3/non-fajr/adhan-9.mp3": {
-      "lufs": -10.41,
-      "size": 5371748,
-      "gain": 0.317
+      "lufs": -10.33,
+      "size": 5371748
     },
     "mp3/non-fajr/aseeb.mp3": {
-      "lufs": -15.19,
-      "size": 6860936,
-      "gain": 0.5495
+      "lufs": -15.46,
+      "size": 6860936
     },
     "mp3/non-fajr/hamza.mp3": {
-      "lufs": -15.12,
-      "size": 6157422,
-      "gain": 0.5451
-    },
-    "mp3/bismillah/bismillah.mp3": {
-      "lufs": -19.24,
-      "size": 101452,
-      "gain": 0.876
-    },
-    "mp3/dua/dua.mp3": {
-      "lufs": -14.9,
-      "size": 662185,
-      "gain": 0.5315
+      "lufs": -15.08,
+      "size": 6157422
     }
   }
 }
