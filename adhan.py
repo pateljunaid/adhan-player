@@ -25,6 +25,7 @@ DUA_PATH = BASE_DIR / 'mp3' / 'dua' / 'dua.mp3'
 BISMILLAH_PATH = BASE_DIR / 'mp3' / 'bismillah' / 'bismillah.mp3'
 SETTINGS_PATH = BASE_DIR / 'settings.json'
 CACHE_PATH = BASE_DIR / 'prayer_times.json'
+LEVELS_PATH = BASE_DIR / 'loudness.json'  # written by normalize_levels.py
 DASHBOARD_PORT = 8080
 
 PRAYER_TIMES_URL = 'https://www.islamicfinder.org/prayer-widget/5882873/hanfi/5/0/15.0/15.0'
@@ -123,7 +124,33 @@ last_played = None
 network_failures = 0
 
 
+def load_gains():
+    """Per-file playback gains (<= 1.0) that even out loudness; see normalize_levels.py."""
+    try:
+        files = json.loads(LEVELS_PATH.read_text())['files']
+        return {name: entry['gain'] for name, entry in files.items()}
+    except (OSError, ValueError, KeyError, TypeError):
+        print(f'WARNING: no usable {LEVELS_PATH.name}; adhans will not be loudness-matched')
+        return {}
+
+
+GAINS = load_gains()
+
+
+def gain_for(path):
+    name = Path(path).relative_to(BASE_DIR).as_posix()
+    if name in GAINS:
+        return GAINS[name]
+    if GAINS:
+        # a new file nobody has measured yet: err on the quiet side rather than blast it
+        print(f'WARNING: {name} is not in {LEVELS_PATH.name}; run normalize_levels.py')
+        return min(GAINS.values())
+    return 1.0
+
+
 def refresh_adhans():
+    global GAINS
+    GAINS = load_gains()
     FAJR_POOL.refresh()
     NON_FAJR_POOL.refresh()
 
@@ -206,7 +233,7 @@ def handle_fetch_failure(error):
 def play(path, volume=None):
     command = ['afplay', str(path)]
     if volume is not None:
-        command += ['-v', str(volume)]
+        command += ['-v', f'{volume:.3f}']
     try:
         subprocess.run(command, check=True, timeout=PLAY_TIMEOUT_SECONDS)
     except (OSError, subprocess.SubprocessError) as e:
@@ -257,9 +284,9 @@ def play_adhan(name, scheduled_time=None):
     print(f'Time is {time.strftime("%I:%M %p")}\n')
     last_played = {'name': name, 'file': adhan.name, 'at': time.strftime('%H:%M')}
     set_system_volume(settings.volume)
-    play(BISMILLAH_PATH)  # plays right away, so it marks the start even if the adhan's intro is silent
-    play(adhan)
-    play(DUA_PATH, volume=settings.dua_volume / 100)
+    play(BISMILLAH_PATH, volume=gain_for(BISMILLAH_PATH))  # right away, so it marks the start even if the adhan's intro is silent
+    play(adhan, volume=gain_for(adhan))
+    play(DUA_PATH, volume=gain_for(DUA_PATH) * settings.dua_volume / 100)
     return schedule.CancelJob
 
 
