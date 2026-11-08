@@ -51,6 +51,18 @@
   .slider:last-child { margin-bottom: 0; }
   .slider label { display: flex; justify-content: space-between; margin-bottom: 6px; }
   input[type=range] { width: 100%; accent-color: var(--accent); }
+  .cand { padding: 12px 0; border-top: 1px solid var(--line); }
+  .cand:first-of-type { border-top: 0; padding-top: 0; }
+  .cand-title { font-weight: 600; overflow-wrap: anywhere; }
+  .cand-tag { font-size: .85rem; color: var(--muted); margin-bottom: 6px; }
+  .cand audio { width: 100%; margin: 4px 0 8px; }
+  .buttons { display: flex; gap: 8px; }
+  button { font: inherit; padding: 8px 16px; border-radius: 8px; border: 1px solid var(--line);
+           background: var(--card); color: var(--text); cursor: pointer; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button:disabled { opacity: .5; cursor: default; }
+  .switch-row { display: flex; align-items: center; justify-content: space-between; gap: 12px;
+                margin-bottom: 12px; }
   #error { display: none; color: var(--error); margin-bottom: 16px; }
 </style>
 </head>
@@ -82,6 +94,21 @@
       <input type="range" id="dua_volume" min="0" max="100" step="1">
     </div>
   </section>
+
+  <section class="card">
+    <h2>Discover new adhans</h2>
+    <div class="switch-row">
+      <span>Also play a new one at each prayer</span>
+      <label class="switch" title="Play a new adhan at each prayer">
+        <input type="checkbox" id="discovery" aria-label="Play a new adhan at each prayer"><span></span>
+      </label>
+    </div>
+    <div class="muted" id="cand-status"></div>
+    <div id="candidates"></div>
+    <div class="buttons" style="margin-top:12px">
+      <button id="more">Get more</button>
+    </div>
+  </section>
 </main>
 
 <script>
@@ -89,6 +116,8 @@ const $ = id => document.getElementById(id);
 const SLIDERS = ['volume', 'dua_volume'];
 let state = null;
 let fetchedAt = 0;
+let busy = false; // a Save/Skip/Get more request is in flight
+const candidateRows = new Map(); // file name -> its row on the page
 let editing = null; // slider currently being dragged; don't overwrite it while polling
 
 async function api(path, body) {
@@ -181,10 +210,86 @@ function render() {
     if (editing !== id) $(id).value = value === null ? 50 : value;
   }
 
+  renderCandidates();
+
   $('last-played').textContent = last_played
     ? 'Last played: ' + last_played.name + ' at ' + last_played.at + ' (' + last_played.file + ')'
     : '';
   tick();
+}
+
+function renderCandidates() {
+  const { candidates, downloading, max } = state.discovery;
+  $('discovery').checked = !!state.settings.discovery;
+  const full = candidates.length >= max;
+  $('cand-status').textContent = downloading ? 'Downloading…'
+    : full ? 'Limit of ' + max + ' reached: save or skip some to get more.'
+    : candidates.length ? '' : 'None downloaded yet. Press "Get more" to fetch some to listen to.';
+  $('more').disabled = busy || downloading || full;
+
+  // Update rows in place: replacing an <audio> would cut off whatever is being listened to.
+  const list = $('candidates');
+  const present = new Set(candidates.map(c => c.file));
+  for (const [file, row] of candidateRows) {
+    if (!present.has(file)) { row.remove(); candidateRows.delete(file); }
+  }
+  candidates.forEach((c, index) => {
+    let row = candidateRows.get(c.file);
+    if (!row) {
+      row = makeCandidateRow(c);
+      candidateRows.set(c.file, row);
+    }
+    row.tag.textContent = (c.kind === 'fajr' ? 'Fajr adhan' : 'Adhan') +
+      (c.played_at ? ' · played at ' + c.prayer + ' ' + c.played_at : '');
+    for (const button of row.buttons) button.disabled = busy;
+    if (list.children[index] !== row.el) list.insertBefore(row.el, list.children[index] || null);
+  });
+}
+
+function makeCandidateRow(c) {
+  const el = document.createElement('div');
+  el.className = 'cand';
+
+  const title = document.createElement('div');
+  title.className = 'cand-title';
+  title.textContent = c.label;
+
+  const tag = document.createElement('div');
+  tag.className = 'cand-tag';
+
+  const audio = document.createElement('audio');
+  audio.controls = true;
+  audio.preload = 'none';
+  audio.src = '/candidates/' + encodeURIComponent(c.file);
+
+  const bar = document.createElement('div');
+  bar.className = 'buttons';
+  const keep = document.createElement('button');
+  keep.className = 'primary';
+  keep.textContent = 'Save';
+  keep.addEventListener('click', () => decide('save', c.file));
+  const drop = document.createElement('button');
+  drop.textContent = 'Skip';
+  drop.addEventListener('click', () => decide('skip', c.file));
+  bar.append(keep, drop);
+
+  el.append(title, tag, audio, bar);
+  return { el, tag, buttons: [keep, drop], remove() { el.remove(); } };
+}
+
+async function decide(action, file) {
+  busy = true;
+  renderCandidates();
+  try {
+    state = await api('/api/candidates', { action, file });
+    fetchedAt = Date.now();
+    showError('');
+  } catch (e) {
+    showError('Could not ' + action + ': ' + e.message);
+    await refresh();
+  }
+  busy = false;
+  render();
 }
 
 function formatCountdown(seconds) {
@@ -222,6 +327,9 @@ for (const id of SLIDERS) {
     render();
   });
 }
+
+$('discovery').addEventListener('change', () => save({ discovery: $('discovery').checked }));
+$('more').addEventListener('click', () => decide('more'));
 
 refresh();
 setInterval(refresh, 10000);

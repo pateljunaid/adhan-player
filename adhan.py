@@ -14,6 +14,7 @@ import schedule
 from bs4 import BeautifulSoup
 
 import dashboard
+import discovery
 import loudness
 
 DEBUG = False
@@ -25,6 +26,8 @@ FAJR_DIR = BASE_DIR / 'mp3' / 'fajr'
 NON_FAJR_DIR = BASE_DIR / 'mp3' / 'non-fajr'
 DUA_PATH = BASE_DIR / 'mp3' / 'dua' / 'dua.mp3'
 BISMILLAH_PATH = BASE_DIR / 'mp3' / 'bismillah' / 'bismillah.mp3'
+CANDIDATES_DIR = BASE_DIR / 'mp3' / 'candidates'  # adhans downloaded to try; see discovery.py
+CANDIDATES_PATH = BASE_DIR / 'candidates.json'
 SETTINGS_PATH = BASE_DIR / 'settings.json'
 CACHE_PATH = BASE_DIR / 'prayer_times.json'
 LEVELS_PATH = BASE_DIR / 'loudness.json'  # written by normalize_levels.py
@@ -96,29 +99,33 @@ class AdhanPool:
         self.files = []
         self.queue = []
         self.last = None
+        self.lock = threading.Lock()  # a dashboard "Save" refreshes while the scheduler may be picking
 
     def refresh(self):
-        self.files = sorted(f for f in self.directory.glob('*.mp3')
-                            if f.is_file() and not f.name.startswith('.'))
-        self.queue = [f for f in self.queue if f in self.files]
-        if not self.files:
-            print(f'WARNING: no mp3 files in {self.directory}')
+        with self.lock:
+            self.files = sorted(f for f in self.directory.glob('*.mp3')
+                                if f.is_file() and not f.name.startswith('.'))
+            self.queue = [f for f in self.queue if f in self.files]
+            if not self.files:
+                print(f'WARNING: no mp3 files in {self.directory}')
 
     def next(self):
-        if not self.files:
-            return None
-        if not self.queue:
-            self.queue = list(self.files)
-            random.shuffle(self.queue)
-            # the end of the queue plays next: don't repeat the last pick of the previous cycle
-            if len(self.queue) > 1 and self.queue[-1] == self.last:
-                self.queue[0], self.queue[-1] = self.queue[-1], self.queue[0]
-        self.last = self.queue.pop()
-        return self.last
+        with self.lock:
+            if not self.files:
+                return None
+            if not self.queue:
+                self.queue = list(self.files)
+                random.shuffle(self.queue)
+                # the end of the queue plays next: don't repeat the last pick of the previous cycle
+                if len(self.queue) > 1 and self.queue[-1] == self.last:
+                    self.queue[0], self.queue[-1] = self.queue[-1], self.queue[0]
+            self.last = self.queue.pop()
+            return self.last
 
 
 FAJR_POOL = AdhanPool(FAJR_DIR)
 NON_FAJR_POOL = AdhanPool(NON_FAJR_DIR)
+CANDIDATES = discovery.Discovery(CANDIDATES_DIR, CANDIDATES_PATH, FAJR_DIR, NON_FAJR_DIR)
 
 settings = dashboard.Settings(SETTINGS_PATH, NAMES)
 today_prayers = []  # full [(name, 'HH:MM')] list for the dashboard, including ones already past
@@ -129,6 +136,7 @@ network_failures = 0
 GAINS = {}  # per-file playback gains (<= 1.0) that even out loudness; see loudness.py
 measured = {}  # loudness measured on this machine for mp3s missing from loudness.json
 measuring = False
+gains_lock = threading.Lock()
 
 
 def level_key(path):
@@ -146,8 +154,9 @@ def load_levels():
 
 def update_gains():
     global GAINS
-    levels = {name: entry for name, entry in load_levels().items() if (BASE_DIR / name).is_file()}
-    GAINS = loudness.compute_gains(levels)
+    with gains_lock:  # the scheduler, measuring/download threads and the dashboard all call this
+        levels = {name: entry for name, entry in load_levels().items() if (BASE_DIR / name).is_file()}
+        GAINS = loudness.compute_gains(levels)
 
 
 def gain_for(path):
@@ -161,17 +170,21 @@ def gain_for(path):
     return 1.0
 
 
+def measure_file(path):
+    try:
+        measured[level_key(path)] = {'lufs': loudness.measure_lufs(path), 'size': path.stat().st_size}
+    except Exception as e:  # a thread can't be allowed to die quietly half-way through
+        print(f'Could not measure {path.name}: {e!r}')
+        return
+    update_gains()
+    print(f'Measured loudness of {path.name}')
+
+
 def measure_files(paths):
     global measuring
     try:
         for path in paths:
-            try:
-                measured[level_key(path)] = {'lufs': loudness.measure_lufs(path), 'size': path.stat().st_size}
-            except Exception as e:  # a thread can't be allowed to die quietly half-way through
-                print(f'Could not measure {path.name}: {e!r}')
-                continue
-            update_gains()
-            print(f'Measured loudness of {path.name}')
+            measure_file(path)
     finally:
         measuring = False
 
@@ -184,7 +197,14 @@ def measure_new_files():
     global measuring
     levels = load_levels()
     files = FAJR_POOL.files + NON_FAJR_POOL.files + [BISMILLAH_PATH, DUA_PATH]
-    todo = [p for p in files if p.is_file() and levels.get(level_key(p), {}).get('size') != p.stat().st_size]
+    files += [CANDIDATES.directory / c['file'] for c in CANDIDATES.candidates()]
+    todo = []
+    for p in files:
+        try:  # a candidate skipped on the dashboard can vanish at any moment
+            if levels.get(level_key(p), {}).get('size') != p.stat().st_size:
+                todo.append(p)
+        except OSError:
+            pass
     if todo and not measuring:
         print(f'Measuring loudness of {len(todo)} new file(s) in the background')
         measuring = True
@@ -274,13 +294,16 @@ def handle_fetch_failure(error):
 
 
 def play(path, volume=None):
+    """Plays a file with afplay. Returns whether it played without error."""
     command = ['afplay', str(path)]
     if volume is not None:
         command += ['-v', f'{volume:.3f}']
     try:
         subprocess.run(command, check=True, timeout=PLAY_TIMEOUT_SECONDS)
+        return True
     except (OSError, subprocess.SubprocessError) as e:
         print(f'Failed to play {path}: {e!r}')
+        return False
 
 
 def get_system_volume():
@@ -318,17 +341,29 @@ def play_adhan(name, scheduled_time=None):
         print(f'Skipping {name}: scheduled for {scheduled_time} but it is {time.strftime("%H:%M")}')
         return schedule.CancelJob
 
-    adhan = (FAJR_POOL if name == 'Fajr' else NON_FAJR_POOL).next()
+    kind = 'fajr' if name == 'Fajr' else 'regular'
+    pool = FAJR_POOL if name == 'Fajr' else NON_FAJR_POOL
+    # only candidates that were measured, i.e. that decode, are worth risking a prayer on
+    candidate = CANDIDATES.pick(kind, ok=lambda path: level_key(path) in measured) if settings.discovery else None
+    adhan = candidate or pool.next()
     if adhan is None:
         print('No adhan mp3s found, skipping')
         return schedule.CancelJob
 
     print(f'playing {name} adhan: {adhan.name}')
     print(f'Time is {time.strftime("%I:%M %p")}\n')
-    last_played = {'name': name, 'file': adhan.name, 'at': time.strftime('%H:%M')}
+    last_played = {'name': name, 'file': adhan.name, 'at': time.strftime('%H:%M'), 'candidate': candidate is not None}
+    if candidate:
+        CANDIDATES.mark_played(candidate, name)
     set_system_volume(settings.volume)
     play(BISMILLAH_PATH, volume=gain_for(BISMILLAH_PATH))  # right away, so it marks the start even if the adhan's intro is silent
-    play(adhan, volume=gain_for(adhan))
+    if not play(adhan, volume=gain_for(adhan)) and candidate:
+        # e.g. it was skipped or saved on the dashboard during the bismillah: never lose the adhan
+        fallback = pool.next()
+        if fallback:
+            print(f'Candidate failed, playing {fallback.name} instead')
+            last_played.update(file=fallback.name, candidate=False)
+            play(fallback, volume=gain_for(fallback))
     play(DUA_PATH, volume=gain_for(DUA_PATH) * settings.dua_volume / 100)
     return schedule.CancelJob
 
@@ -394,8 +429,13 @@ def retry_refresh():
 
 @survive_errors()
 def nightly_refresh():
-    refresh_adhans()
+    try:
+        refresh_adhans()
+    except Exception:  # whatever goes wrong here must not stop tomorrow's prayers being scheduled
+        traceback.print_exc()
     refresh_prayers()
+    if settings.discovery:
+        download_candidates()
 
 
 def get_status():
@@ -410,14 +450,59 @@ def get_status():
         'prayers': [{'name': name, 'time': t} for name, t in today_prayers],
         'next': upcoming,
         'last_played': last_played,
+        'discovery': {'candidates': CANDIDATES.candidates(), 'downloading': CANDIDATES.is_downloading(),
+                      'max': discovery.MAX_CANDIDATES},
     }
+
+
+def download_candidates(count=None):
+    """Tops up the adhans waiting to be tried (or fetches `count` more), in the background."""
+    CANDIDATES.start_refill(count=count, on_download=measure_file)
+
+
+def adhan_target_lufs():
+    adhans = [e['lufs'] for name, e in load_levels().items() if name.startswith(loudness.ADHAN_DIRS)]
+    return min(adhans) if adhans else None
+
+
+def handle_candidate(action, file):
+    """The dashboard's Save / Skip / Get more buttons. Raises KeyError for an unknown file."""
+    if action == 'more':
+        return download_candidates(count=3)
+    if action not in ('save', 'skip'):
+        raise ValueError(f'unknown action: {action!r}')
+    if not isinstance(file, str):
+        raise ValueError('file must be a string')
+
+    if action == 'skip':
+        CANDIDATES.skip(file)
+        print(f'Skipped candidate adhan {file}')
+    else:
+        target = adhan_target_lufs()
+        old, new = CANDIDATES.save(file)
+        entry = measured.pop(level_key(old), None)
+        if entry:
+            measured[level_key(new)] = entry
+            if target is not None and entry['lufs'] < target:
+                print(f'NOTE: {new.name} is quieter than every other adhan, so all of them now play softer; '
+                      'raise the dashboard volume to compensate')
+        refresh_adhans()
+        print(f'Saved candidate adhan as {new.relative_to(BASE_DIR)}')
+    download_candidates()  # keep the stash topped up
+
+
+def on_settings_change(changed):
+    if 'volume' in changed:
+        set_system_volume(settings.volume)
+    if 'discovery' in changed and settings.discovery:
+        download_candidates()
 
 
 def start_dashboard():
     # Never let the dashboard stop the adhans: a taken port just means no dashboard.
     try:
-        dashboard.serve(settings, get_status, port=DASHBOARD_PORT,
-                        on_change=lambda changed: set_system_volume(settings.volume) if 'volume' in changed else None)
+        dashboard.serve(settings, get_status, port=DASHBOARD_PORT, on_change=on_settings_change,
+                        on_candidate=handle_candidate, candidate_path=CANDIDATES.path_for)
     except OSError as e:
         print(f'Dashboard failed to start: {e!r}')
     else:
@@ -440,6 +525,8 @@ def main():
         if current is not None:
             settings.update({'volume': current})
     start_dashboard()
+    if settings.discovery:
+        download_candidates()
 
     refresh_prayers()
 
