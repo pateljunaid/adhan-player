@@ -26,6 +26,7 @@ FAJR_DIR = BASE_DIR / 'mp3' / 'fajr'
 NON_FAJR_DIR = BASE_DIR / 'mp3' / 'non-fajr'
 DUA_PATH = BASE_DIR / 'mp3' / 'dua' / 'dua.mp3'
 BISMILLAH_PATH = BASE_DIR / 'mp3' / 'bismillah' / 'bismillah.mp3'
+BISMILLAH_TRIM = 0.7  # the short clip sounds louder than its measured level; about -3 dB
 CANDIDATES_DIR = BASE_DIR / 'mp3' / 'candidates'  # adhans downloaded to try; see discovery.py
 CANDIDATES_PATH = BASE_DIR / 'candidates.json'
 SETTINGS_PATH = BASE_DIR / 'settings.json'
@@ -356,7 +357,7 @@ def play_adhan(name, scheduled_time=None):
     if candidate:
         CANDIDATES.mark_played(candidate, name)
     set_system_volume(settings.volume)
-    play(BISMILLAH_PATH, volume=gain_for(BISMILLAH_PATH))  # right away, so it marks the start even if the adhan's intro is silent
+    play(BISMILLAH_PATH, volume=gain_for(BISMILLAH_PATH) * BISMILLAH_TRIM)  # right away, so it marks the start even if the adhan's intro is silent
     if not play(adhan, volume=gain_for(adhan)) and candidate:
         # e.g. it was skipped or saved on the dashboard during the bismillah: never lose the adhan
         fallback = pool.next()
