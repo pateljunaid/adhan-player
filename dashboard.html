@@ -30,6 +30,7 @@
   .next-count { font-size: 2.4rem; font-weight: 700; color: var(--accent);
                 font-variant-numeric: tabular-nums; }
   .muted { color: var(--muted); }
+  [hidden] { display: none !important; }
   .row { display: flex; align-items: center; justify-content: space-between;
          padding: 10px 0; border-top: 1px solid var(--line); }
   .row:first-of-type { border-top: 0; }
@@ -75,7 +76,16 @@
     <h2>Next prayer</h2>
     <div class="next-name" id="next-name">Loading…</div>
     <div class="next-count" id="next-count"></div>
-    <div class="muted" id="last-played"></div>
+  </section>
+
+  <section class="card" id="now-card" hidden>
+    <h2 id="now-title">Now playing</h2>
+    <div class="cand-title" id="now-name"></div>
+    <div class="cand-tag" id="now-tag"></div>
+    <div class="buttons" id="now-actions">
+      <button class="primary" id="now-save">Save this adhan</button>
+      <button id="now-skip">Skip it</button>
+    </div>
   </section>
 
   <section class="card">
@@ -116,6 +126,7 @@ const $ = id => document.getElementById(id);
 const SLIDERS = ['volume', 'dua_volume'];
 let state = null;
 let fetchedAt = 0;
+let nowFile = null; // the new adhan shown in the Now playing card, if undecided
 let busy = false; // a Save/Skip/Get more request is in flight
 const candidateRows = new Map(); // file name -> its row on the page
 let editing = null; // slider currently being dragged; don't overwrite it while polling
@@ -212,10 +223,25 @@ function render() {
 
   renderCandidates();
 
-  $('last-played').textContent = last_played
-    ? 'Last played: ' + last_played.name + ' at ' + last_played.at + ' (' + last_played.file + ')'
-    : '';
+  renderNowPlaying(last_played);
   tick();
+}
+
+function renderNowPlaying(lp) {
+  $('now-card').hidden = !lp;
+  if (!lp) return;
+  const cand = state.discovery.candidates.find(c => c.file === lp.file);
+  $('now-title').textContent = lp.playing ? 'Now playing' : 'Last played';
+  $('now-name').textContent = cand ? cand.label : lp.file.replace(/\.mp3$/i, '');
+  const pending = lp.candidate && !!cand; // a new adhan that hasn't been saved or skipped yet
+  $('now-tag').textContent = lp.name + ' · ' + lp.at + ' · ' +
+    (pending ? 'a new adhan you haven\'t decided on yet'
+      : lp.saved ? 'saved to your adhans'
+      : lp.candidate ? 'skipped'
+      : 'already one of your adhans');
+  $('now-actions').hidden = !pending;
+  $('now-save').disabled = $('now-skip').disabled = busy;
+  nowFile = pending ? lp.file : null;
 }
 
 function renderCandidates() {
@@ -291,6 +317,9 @@ async function decide(action, file) {
   busy = false;
   render();
 }
+
+$('now-save').addEventListener('click', () => nowFile && decide('save', nowFile));
+$('now-skip').addEventListener('click', () => nowFile && decide('skip', nowFile));
 
 function formatCountdown(seconds) {
   const h = Math.floor(seconds / 3600);

@@ -131,6 +131,7 @@ CANDIDATES = discovery.Discovery(CANDIDATES_DIR, CANDIDATES_PATH, FAJR_DIR, NON_
 settings = dashboard.Settings(SETTINGS_PATH, NAMES)
 today_prayers = []  # full [(name, 'HH:MM')] list for the dashboard, including ones already past
 last_played = None
+saved_paths = {}  # candidate path -> where Save moved it, so a Save during the bismillah doesn't lose the adhan
 network_failures = 0
 
 
@@ -353,19 +354,24 @@ def play_adhan(name, scheduled_time=None):
 
     print(f'playing {name} adhan: {adhan.name}')
     print(f'Time is {time.strftime("%I:%M %p")}\n')
-    last_played = {'name': name, 'file': adhan.name, 'at': time.strftime('%H:%M'), 'candidate': candidate is not None}
-    if candidate:
-        CANDIDATES.mark_played(candidate, name)
-    set_system_volume(settings.volume)
-    play(BISMILLAH_PATH, volume=gain_for(BISMILLAH_PATH) * BISMILLAH_TRIM)  # right away, so it marks the start even if the adhan's intro is silent
-    if not play(adhan, volume=gain_for(adhan)) and candidate:
-        # e.g. it was skipped or saved on the dashboard during the bismillah: never lose the adhan
-        fallback = pool.next()
-        if fallback:
-            print(f'Candidate failed, playing {fallback.name} instead')
-            last_played.update(file=fallback.name, candidate=False)
-            play(fallback, volume=gain_for(fallback))
-    play(DUA_PATH, volume=gain_for(DUA_PATH) * settings.dua_volume / 100)
+    last_played = {'name': name, 'file': adhan.name, 'at': time.strftime('%H:%M'),
+                   'candidate': candidate is not None, 'playing': True}
+    try:
+        if candidate:
+            CANDIDATES.mark_played(candidate, name)
+        set_system_volume(settings.volume)
+        play(BISMILLAH_PATH, volume=gain_for(BISMILLAH_PATH) * BISMILLAH_TRIM)  # right away, so it marks the start even if the adhan's intro is silent
+        adhan = saved_paths.pop(adhan, adhan)  # saved from the dashboard during the bismillah: now lives elsewhere
+        if not play(adhan, volume=gain_for(adhan)) and candidate:
+            # e.g. it was skipped on the dashboard during the bismillah: never lose the adhan
+            fallback = pool.next()
+            if fallback:
+                print(f'Candidate failed, playing {fallback.name} instead')
+                last_played.update(file=fallback.name, candidate=False)
+                play(fallback, volume=gain_for(fallback))
+        play(DUA_PATH, volume=gain_for(DUA_PATH) * settings.dua_volume / 100)
+    finally:
+        last_played['playing'] = False
     return schedule.CancelJob
 
 
@@ -477,10 +483,15 @@ def handle_candidate(action, file):
 
     if action == 'skip':
         CANDIDATES.skip(file)
+        if last_played and last_played['file'] == file:
+            last_played['candidate'] = False
         print(f'Skipped candidate adhan {file}')
     else:
         target = adhan_target_lufs()
         old, new = CANDIDATES.save(file)
+        saved_paths[old] = new
+        if last_played and last_played['file'] == old.name:
+            last_played.update(file=new.name, candidate=False, saved=True)
         entry = measured.pop(level_key(old), None)
         if entry:
             measured[level_key(new)] = entry
